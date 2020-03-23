@@ -47,6 +47,16 @@ function Get-DeviceConfig
         if ($Vendor -eq "Cisco"){
             $SessionStream.WriteLine("enable");
             $SessionStream.WriteLine("terminal length 0");
+        } elseif ($Vendor -eq "H3C"){
+            $SessionStream.WriteLine("screen-lengh disable");
+            $SessionStream.WriteLine("disable paging");
+        } elseif ($Vendor -eq "hp"){
+            $SessionStream.WriteLine("no page");
+            $SessionStream.WriteLine("enable");
+        } elseif ($Vendor -eq "Juniper"){
+            $SessionStream.WriteLine("set cli screen-width 1000");
+        } elseif ($Vendor -eq "enterasys"){
+            $SessionStream.WriteLine("terminal more disable");
         }
         $SessionStream.WriteLine($command);
         Start-Sleep -s $Timeout;
@@ -99,8 +109,8 @@ function Check-Table
             if ([string]::IsNullOrEmpty($cell)){
                 Write-Host Found empty cell '('$i','$j ')' -ForegroundColor Red;
                 $fix = $true;
-            } elif ($j -eq 5) {
-                if ($cell -ne "cisco ios" -and $cell -ne "cisco nexus" -and $cell -ne "hp" -and $cell -ne "h3c" -and $cell -ne "juniper") {
+            } elseif ($j -eq 5) {
+                if ($cell -ne "cisco" -and $cell -ne "hp" -and $cell -ne "h3c" -and $cell -ne "juniper" -and $cell -ne "enterasys") {
                     Write-Host Unknown vendor on row $i : "'"${vendor} "'" -ForegroundColor Red
                     $fix = $true 
                 }
@@ -118,9 +128,27 @@ function Check-Table
         Write-Host "`nFormat good" -ForegroundColor Green
     }
 }
+
+function Rename-Dir 
+{
+    param
+    (
+		[String]$Num,
+        [String]$Dir,
+        [String]$IP,
+		[String]$File
+    )
+    $FileContent = Get-Content $File | Out-String;
+    $LastIndex = $FileContent.LastIndexOf("#");
+    $Tmp = $FileContent.Substring(0, $LastIndex);
+    $FirstIndex = $Tmp.LastIndexOf("`n");
+    $DeviceName = $Tmp.Substring($FirstIndex + 1) + ' ' + $IP;
+    Rename-Item $Dir\$Num $Dir\$DeviceName;
+}
+
 Read-Host “Please choose location of excel file (Press ENTER)”
 #$loc = Get-FileName
-$loc = "C:\Users\Golan\Documents\GetNetworkConfig\test.xlsx"
+$loc = "C:\Users\Golan\Documents\NetConfigCollector\test.xlsx"
 $IPCol = 1
 $PortCol = 2
 $UserCol = 3
@@ -144,30 +172,35 @@ for ($i = $StartRow; $i -le $length; $i++){
     mkdir $dir\$i | Out-Null
     switch($vendor)
     {
-        "cisco ios"{
+        "cisco"{
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "sh run" -Output $dir\$i\'sh run.txt'
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "show ip route vrf *" -Output $dir\$i\'route.txt'
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "sh snmp user" -Output $dir\$i\'snmp.txt'
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "sh conf | include hostname" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "sh ver" -Output $dir\$i\'run.txt' -a
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "cisco" -Command "show access-lists" -Output $dir\$i\'run.txt' -a
-        }
-        "cisco nexus"{
-        
+
         }
         "h3c"{
-            
+             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "h3c" -Command "display" -Output $dir\$i\'run.txt'
+             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "h3c" -Command "display ip routing-table" -Output $dir\$i\'route.txt'
         }
         "hp"{
-        
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "hp" -Command "sh run" -Output $dir\$i\'run.txt'
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "hp" -Command "show ip route" -Output $dir\$i\'route.txt'
         }
         "juniper"{
-        
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "juniper" -Command "show configuration | display inheritance | no-more" -Output $dir\$i\'run.txt'
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "juniper" -Command "show chassis hardware | no-more" -Output $dir\$i\'run.txt' -a
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "juniper" -Command "show route logical-system all | no-more" -Output $dir\$i\'route.txt'
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "juniper" -Command "show route all | no-more" -Output $dir\$i\'route1.txt'
         }
-        "terrasys"{
-        
+        "enterasys"{
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "enterasys" -Command "show config all" -Output $dir\$i\'run.txt'
+            Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "enterasys" -Command "show ip route" -Output $dir\$i\'route.txt'
         }
     }
+    Rename-Dir -Num $i -Dir $dir -IP $ip -File $dir\$i\'run.txt'
 }
 
 $wb.close($false)
