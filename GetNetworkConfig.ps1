@@ -199,6 +199,7 @@ for ($i = $StartRow; $i -le $length; $i++){
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "enterasys" -Command "show config all" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -Username $username -Password $password -AcceptKey -Vendor "enterasys" -Command "show ip route" -Output $dir\$i\'route.txt'
         }
+        #add fortigate, cisco asa
     }
     Rename-Dir -Num $i -Dir $dir -IP $ip -File $dir\$i\'run.txt'
 }
