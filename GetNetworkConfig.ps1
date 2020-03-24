@@ -21,7 +21,7 @@ function Get-DeviceConfig
         [SecureString]$Password,
 		[String]$Command,
         [String]$Output,
-        [Switch]$a,
+        [Switch]$Append,
         [Int]$Timeout
     )
     $Credentials = New-Object System.Management.Automation.PSCredential $Username, $Password;
@@ -58,7 +58,7 @@ function Get-DeviceConfig
         }
         Write-Host $SessionResponse
         if ($Output){
-            if ($a) {
+            if ($Append) {
                 Add-Content $Output $SessionResponse;
             } else {
                 $SessionResponse > $Output;
@@ -91,10 +91,10 @@ function Get-FileName
     $OpenFileDialog.filename
 }
 
-function Check-Table
+function Test-Table
 {
     $fix = $false
-    Write-Host "`nChecking table format"
+    Write-Host "Checking table format`n"
     foreach ($j in 1,3,4,5){
         for ($i = $StartRow; $i -le $length; $i++){
             $cell = $sh.Cells.Item($i, $j).Text;
@@ -110,14 +110,14 @@ function Check-Table
         }
     }
     if ($fix){
-        Write-Host "`nVendor must be: cisco, asa, hp, h3c, fortiage, enterasys or juniper"
-        Write-Host “`nPlease fix excel and re-run the script”
-        Read-Host "`nPress ENTER to exit"
+        Write-Host "Vendor must be: cisco, asa, hp, h3c, fortiage, enterasys or juniper`n"
+        Write-Host “Please fix excel and re-run the script`n”
+        Read-Host "Press ENTER to exit`n"
         $wb.close($false)
         $excel.Quit()
         exit
     } else {
-        Write-Host "`nFormat Good" -ForegroundColor Green
+        Write-Host "Format Good`n" -ForegroundColor Green
     }
 }
 
@@ -138,7 +138,7 @@ function Rename-Dir
     Rename-Item $Dir\$Num $Dir\$DeviceName;
 }
 
-Read-Host “Please choose location of excel file (Press ENTER)”
+Read-Host “Please choose location of excel file (Press ENTER)`n”
 #$loc = Get-FileName
 $loc = "C:\Users\Golan\Documents\NetConfigCollector\test.xlsx"
 if (!($Timeout = Read-Host "Timeout in seconds between each run [default = 5]")) { $Timeout = 5 };
@@ -152,8 +152,8 @@ $excel = New-Object -ComObject Excel.Application
 $wb = $excel.Workbooks.Open($loc)
 $sh = $wb.Sheets.Item(1)
 $length = $sh.UsedRange.Rows.Count;
-Check-Table;
-Write-Host "`nCreating connection and retrieving configuration files. Please wait.`n"
+Test-Table;
+Write-Host "Creating connection and retrieving configuration files. Please wait.`n"
 $dir = [String](Split-Path -Path $loc) + '\Config'
 mkdir $dir | Out-Null
 for ($i = $StartRow; $i -le $length; $i++){
@@ -172,8 +172,8 @@ for ($i = $StartRow; $i -le $length; $i++){
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh run" -Output $dir\$i\'sh run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "show ip route vrf *" -Output $dir\$i\'route.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh conf | include hostname" -Output $dir\$i\'run.txt'
-            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh ver" -Output $dir\$i\'run.txt' -a
-            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "show access-lists" -Output $dir\$i\'run.txt' -a
+            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh ver" -Output $dir\$i\'run.txt' -Append
+            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "show access-lists" -Output $dir\$i\'run.txt' -Append
         }
         "h3c"{
              Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "h3c" -Command "display" -Output $dir\$i\'run.txt'
@@ -185,7 +185,7 @@ for ($i = $StartRow; $i -le $length; $i++){
         }
         "juniper"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show configuration | display inheritance | no-more" -Output $dir\$i\'run.txt'
-            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show chassis hardware | no-more" -Output $dir\$i\'run.txt' -a
+            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show chassis hardware | no-more" -Output $dir\$i\'run.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show route logical-system all | no-more" -Output $dir\$i\'route.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show route all | no-more" -Output $dir\$i\'route1.txt'
         }
@@ -195,12 +195,12 @@ for ($i = $StartRow; $i -le $length; $i++){
         }
         "fortigate"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "get system status" -Output $dir\$i\'config.txt'
-            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "show" -Output $dir\$i\'config.txt' -a
+            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "show" -Output $dir\$i\'config.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "get router info routing-table" -Output $dir\$i\'route.txt'
         }
         "asa"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show run" -Output $dir\$i\'run.txt'
-            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show access-lists" -Output $dir\$i\'run.txt' -a
+            Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show access-lists" -Output $dir\$i\'run.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show route" -Output $dir\$i\'route.txt'
         }
     }
