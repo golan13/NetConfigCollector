@@ -94,30 +94,30 @@ function Get-FileName
 function Test-Table
 {
     $fix = $false
-    Write-Host "Checking table format`n"
+    Write-Host "Checking table format"
     foreach ($j in 1,3,4,5){
         for ($i = $StartRow; $i -le $length; $i++){
             $cell = $sh.Cells.Item($i, $j).Text;
             if ([string]::IsNullOrEmpty($cell)){
-                Write-Host Found empty cell '('$i','$j ')' -ForegroundColor Red;
+                Write-Host [Failed] Found empty cell '('$i','$j ')' -ForegroundColor Red;
                 $fix = $true;
             } elseif ($j -eq 5) {
                 if ($cell -ne "cisco" -and $cell -ne "hp" -and $cell -ne "h3c" -and $cell -ne "juniper" -and $cell -ne "enterasys" -and $cell -ne "fortigate" -and $cell -ne "asa") {
-                    Write-Host Unknown vendor on row $i : "'"${vendor} "'" -ForegroundColor Red
+                    Write-Host [Failed] Unknown vendor on row $i : "'"${vendor} "'" -ForegroundColor Red
                     $fix = $true 
                 }
             }
         }
     }
     if ($fix){
-        Write-Host "Vendor must be: cisco, asa, hp, h3c, fortiage, enterasys or juniper`n"
-        Write-Host “Please fix excel and re-run the script`n”
-        Read-Host "Press ENTER to exit`n"
+        Write-Host "[Failed] Vendor must be: cisco, asa, hp, h3c, fortiage, enterasys or juniper" -ForegroundColor Red
+        Write-Host “ [Failed] Please fix excel and re-run the script” -ForegroundColor Red
+        Read-Host "[Failed] Press ENTER to exit" -ForegroundColor Red
         $wb.close($false)
         $excel.Quit()
         exit
     } else {
-        Write-Host "Format Good`n" -ForegroundColor Green
+        Write-Host "[Passed] Format Good" -ForegroundColor Green
     }
 }
 
@@ -128,17 +128,28 @@ function Rename-Dir
 		[String]$Num,
         [String]$Dir,
         [String]$IP,
-		[String]$File
+        [String]$Vendor,
+        [String]$File
     )
     $FileContent = Get-Content $File | Out-String;
-    $LastIndex = $FileContent.LastIndexOf("#");
+    if ($Vendor -eq "cisco" -or $Vendor -eq "asa" -or $Vendor -eq "hp" -or $Vendor -eq "enterasys") {
+        $EndDelimeter = "#";
+        $StartDelimeter = "`n";
+    } elseif ($Vendor -eq "h3c") {
+        $EndDelimeter = ">";
+        $StartDelimeter = "<";
+    } elseif ($Vendor -eq "juniper") {
+        $EndDelimeter = ">";
+        $StartDelimeter = "`n";
+    } 
+    $LastIndex = $FileContent.LastIndexOf($EndDelimeter);
     $Tmp = $FileContent.Substring(0, $LastIndex);
-    $FirstIndex = $Tmp.LastIndexOf("`n");
+    $FirstIndex = $Tmp.LastIndexOf($StartDelimeter);
     $DeviceName = $Tmp.Substring($FirstIndex + 1) + ' ' + $IP;
     Rename-Item $Dir\$Num $Dir\$DeviceName;
 }
 
-Read-Host “Please choose location of excel file (Press ENTER)`n”
+Read-Host “Please choose location of excel file (Press ENTER)”
 #$loc = Get-FileName
 $loc = "C:\Users\Golan\Documents\NetConfigCollector\test.xlsx"
 if (!($Timeout = Read-Host "Timeout in seconds between each run [default = 5]")) { $Timeout = 5 };
@@ -153,7 +164,7 @@ $wb = $excel.Workbooks.Open($loc)
 $sh = $wb.Sheets.Item(1)
 $length = $sh.UsedRange.Rows.Count;
 Test-Table;
-Write-Host "Creating connection and retrieving configuration files. Please wait.`n"
+Write-Host "Creating connection and retrieving configuration files. Please wait."
 $dir = [String](Split-Path -Path $loc) + '\Config'
 mkdir $dir | Out-Null
 for ($i = $StartRow; $i -le $length; $i++){
@@ -174,37 +185,43 @@ for ($i = $StartRow; $i -le $length; $i++){
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh conf | include hostname" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "sh ver" -Output $dir\$i\'run.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "cisco" -Command "show access-lists" -Output $dir\$i\'run.txt' -Append
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
         "h3c"{
              Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "h3c" -Command "display" -Output $dir\$i\'run.txt'
              Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "h3c" -Command "display ip routing-table" -Output $dir\$i\'route.txt'
+             Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
         "hp"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "hp" -Command "sh run" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "hp" -Command "show ip route" -Output $dir\$i\'route.txt'
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
         "juniper"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show configuration | display inheritance | no-more" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show chassis hardware | no-more" -Output $dir\$i\'run.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show route logical-system all | no-more" -Output $dir\$i\'route.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "juniper" -Command "show route all | no-more" -Output $dir\$i\'route1.txt'
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
         "enterasys"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "enterasys" -Command "show config all" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "enterasys" -Command "show ip route" -Output $dir\$i\'route.txt'
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
         "fortigate"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "get system status" -Output $dir\$i\'config.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "show" -Output $dir\$i\'config.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "fortigate" -Command "get router info routing-table" -Output $dir\$i\'route.txt'
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'config.txt'
         }
         "asa"{
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show run" -Output $dir\$i\'run.txt'
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show access-lists" -Output $dir\$i\'run.txt' -Append
             Get-DeviceConfig -HostAddress $ip -HostPort $port -Username $username -Password $password -Vendor "asa" -Command "show route" -Output $dir\$i\'route.txt'
+            Rename-Dir -Num $i -Dir $dir -IP $ip -Vendor $vendor -File $dir\$i\'run.txt'
         }
     }
-    Rename-Dir -Num $i -Dir $dir -IP $ip -File $dir\$i\'run.txt'
 }
 $wb.close($false)
 $excel.Quit()
